@@ -30,7 +30,7 @@ namespace ftc_local_planner
     {
     }
 
-    void FTCPlanner::initialize(std::string name, tf::TransformListener* tf, costmap_2d::Costmap2DROS* costmap_ros)
+    void FTCPlanner::initialize(std::string name, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* costmap_ros)
     {
         ros::NodeHandle private_nh("~/" + name);
         local_plan_publisher_ = private_nh.advertise<nav_msgs::Path>("local_plan", 1);
@@ -78,15 +78,15 @@ namespace ftc_local_planner
             }
 
             first_setPlan_ = false;
-            ftc_local_planner::getXPose(*tf_,global_plan_, costmap_ros_->getGlobalFrameID(),old_goal_pose_,global_plan_.size()-1);
+            ftc_local_planner::getXPose(*tf_, global_plan_, costmap_ros_->getGlobalFrameID(), old_goal_pose_, global_plan_.size()-1);
             first_use = true;
         }
 
-        ftc_local_planner::getXPose(*tf_,global_plan_, costmap_ros_->getGlobalFrameID(),goal_pose_,global_plan_.size()-1);
+        ftc_local_planner::getXPose(*tf_, global_plan_, costmap_ros_->getGlobalFrameID(),goal_pose_,global_plan_.size()-1);
         //Have the new global plan an new goal, reset. Else dont reset.
-        if(std::abs(std::abs(old_goal_pose_.getOrigin().getX())-std::abs(goal_pose_.getOrigin().getX())) <= config_.position_accuracy &&
-                std::abs(std::abs(old_goal_pose_.getOrigin().getY())-std::abs(goal_pose_.getOrigin().getY())) <= config_.position_accuracy && !first_use
-                && std::abs(angles::shortest_angular_distance(tf::getYaw(old_goal_pose_.getRotation()), tf::getYaw(goal_pose_.getRotation()))) <= config_.rotation_accuracy)
+        if(std::abs(std::abs(old_goal_pose_.pose.position.x)-std::abs(goal_pose_.pose.position.x)) <= config_.position_accuracy &&
+                std::abs(std::abs(old_goal_pose_.pose.position.y)-std::abs(goal_pose_.pose.position.y)) <= config_.position_accuracy && !first_use
+                && std::abs(angles::shortest_angular_distance(tf2::getYaw(old_goal_pose_.pose.orientation), tf2::getYaw(goal_pose_.pose.orientation))) <= config_.rotation_accuracy)
         {
             ROS_DEBUG("FTCPlanner: Old Goal == new Goal.");
         }
@@ -109,7 +109,7 @@ namespace ftc_local_planner
 
         ros::Time begin = ros::Time::now();
 
-        tf::Stamped<tf::Pose> current_pose;
+        geometry_msgs::PoseStamped current_pose;
         costmap_ros_->getRobotPose(current_pose);
 
         //Join the actual global an local costmap in the global costmap.
@@ -127,7 +127,7 @@ namespace ftc_local_planner
         else
         {
 
-            double distance = sqrt(pow((goal_pose_.getOrigin().getX()-current_pose.getOrigin().getX()),2)+pow((goal_pose_.getOrigin().getY()-current_pose.getOrigin().getY()),2));
+            double distance = sqrt(pow((goal_pose_.pose.position.x-current_pose.pose.position.x),2)+pow((goal_pose_.pose.position.y-current_pose.pose.position.y),2));
 
             //Check if robot near enough to global goal.
             if(distance > config_.position_accuracy && !stand_at_goal_)
@@ -157,7 +157,7 @@ namespace ftc_local_planner
 
 
                 //Get the goal orientation.
-                double angle_to_global_plan = angles::shortest_angular_distance(tf::getYaw(current_pose.getRotation()), tf::getYaw(goal_pose_.getRotation()));
+                double angle_to_global_plan = angles::shortest_angular_distance(tf2::getYaw(current_pose.pose.orientation), tf2::getYaw(goal_pose_.pose.orientation));
                 //Rotate until goalorientation is reached.
                 if(!rotateToOrientation(angle_to_global_plan, cmd_vel, config_.rotation_accuracy))
                 {
@@ -176,21 +176,24 @@ namespace ftc_local_planner
         return true;
     }
 
-    int FTCPlanner::checkMaxDistance(tf::Stamped<tf::Pose> current_pose)
+    int FTCPlanner::checkMaxDistance(geometry_msgs::PoseStamped current_pose)
     {
         int max_point = 0;
-        tf::Stamped<tf::Pose> x_pose;
+        geometry_msgs::PoseStamped x_pose;
         transformed_global_plan_.clear();
         for (unsigned int i = 0; i < global_plan_.size(); i++)
         {
-            ftc_local_planner::getXPose(*tf_,global_plan_, costmap_ros_->getGlobalFrameID(),x_pose,i);
-            double distance = sqrt(pow((x_pose.getOrigin().getX()-current_pose.getOrigin().getX()),2)+pow((x_pose.getOrigin().getY()-current_pose.getOrigin().getY()),2));
+            ftc_local_planner::getXPose(*tf_, global_plan_, costmap_ros_->getGlobalFrameID(),x_pose,i);
+            double distance = sqrt(pow((x_pose.pose.position.x-current_pose.pose.position.x),2)+pow((x_pose.pose.position.y-current_pose.pose.position.y),2));
 
-            tf::Stamped<tf::Pose> p = tf::Stamped<tf::Pose>(x_pose,
-                                      ros::Time::now(),
-                                      costmap_ros_->getGlobalFrameID());
             geometry_msgs::PoseStamped pose;
-            tf::poseStampedTFToMsg(p, pose);
+            pose.header.stamp = ros::Time::now();
+            pose.header.frame_id = costmap_ros_->getGlobalFrameID();
+            pose.pose = x_pose.pose;
+            
+            // geometry_msgs::PoseStamped pose = geometry_msgs::PoseStamped(x_pose,
+                                    //   ros::Time::now(),
+                                    //   costmap_ros_->getGlobalFrameID());
             transformed_global_plan_.push_back(pose);
 
             max_point = i-1;
@@ -207,7 +210,7 @@ namespace ftc_local_planner
         return max_point;
     }
 
-    int FTCPlanner::checkMaxAngle(int points, tf::Stamped<tf::Pose> current_pose)
+    int FTCPlanner::checkMaxAngle(int points, geometry_msgs::PoseStamped current_pose)
     {
         int max_point = points;
         double angle = 0;
@@ -225,22 +228,22 @@ namespace ftc_local_planner
         return max_point;
     }
 
-    double FTCPlanner::calculateGlobalPlanAngle(tf::Stamped<tf::Pose> current_pose, const std::vector<geometry_msgs::PoseStamped>& plan, int point)
+    double FTCPlanner::calculateGlobalPlanAngle(geometry_msgs::PoseStamped current_pose, const std::vector<geometry_msgs::PoseStamped>& plan, int point)
     {
         if(point >= (int)plan.size())
         {
             point = plan.size()-1;
         }
         double angle = 0;
-        double current_th = tf::getYaw(current_pose.getRotation());
+        double current_th = tf2::getYaw(current_pose.pose.orientation);
         for(int i = 0; i <= point; i++)
         {
             geometry_msgs::PoseStamped x_pose;
             x_pose=transformed_global_plan_.at(i);
 
             //Calculate the angles between robotpose and global plan point pose
-            double angle_to_goal = atan2(x_pose.pose.position.y - current_pose.getOrigin().getY(),
-                                         x_pose.pose.position.x - current_pose.getOrigin().getX());
+            double angle_to_goal = atan2(x_pose.pose.position.y - current_pose.pose.position.y,
+                                         x_pose.pose.position.x - current_pose.pose.position.x);
             angle += angle_to_goal;
         }
 
@@ -336,7 +339,7 @@ namespace ftc_local_planner
         }
     }
 
-    int FTCPlanner::driveToward(tf::Stamped<tf::Pose> current_pose, geometry_msgs::Twist& cmd_vel)
+    int FTCPlanner::driveToward(geometry_msgs::PoseStamped current_pose, geometry_msgs::Twist& cmd_vel)
     {
         double distance = 0;
         double angle = 0;
@@ -353,7 +356,7 @@ namespace ftc_local_planner
         geometry_msgs::PoseStamped x_pose;
         x_pose = transformed_global_plan_.at(max_point);
 
-        distance = sqrt(pow((x_pose.pose.position.x-current_pose.getOrigin().getX()),2)+pow((x_pose.pose.position.y-current_pose.getOrigin().getY()),2));
+        distance = sqrt(pow((x_pose.pose.position.x-current_pose.pose.position.x),2)+pow((x_pose.pose.position.y-current_pose.pose.position.y),2));
         angle = calculateGlobalPlanAngle(current_pose, global_plan_, max_point);
 
         //check if max velocity is exceeded

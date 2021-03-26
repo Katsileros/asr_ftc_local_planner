@@ -32,6 +32,9 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 #include <angles/angles.h>
 #include <costmap_2d/costmap_2d.h>
+#include "tf2/transform_datatypes.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+
 namespace ftc_local_planner
 {
     /**
@@ -42,9 +45,9 @@ namespace ftc_local_planner
     * @param goal_pose the pose to copy into
     * @return True if achieved, false otherwise
     */
-    bool getXPose(const tf::TransformListener& tf,
+    bool getXPose(const tf2_ros::Buffer& tf,
                   const std::vector<geometry_msgs::PoseStamped>& global_plan,
                   const std::string& global_frame,
-                  tf::Stamped<tf::Pose> &goal_pose, int plan_point);
+                  geometry_msgs::PoseStamped &goal_pose, int plan_point);
 };
 #endif

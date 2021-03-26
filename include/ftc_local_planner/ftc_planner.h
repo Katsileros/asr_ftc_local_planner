@@ -22,7 +22,11 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 #include <costmap_2d/costmap_2d_ros.h>
 
-#include <tf/transform_listener.h>
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "tf2/transform_datatypes.h"
+#include "tf2/utils.h"
 
 #include <Eigen/Core>
 
@@ -70,7 +74,7 @@ namespace ftc_local_planner
          * @param tf A pointer to a transform listener
          * @param costmap_ros The cost map to use for assigning costs to local plans
          */
-        void initialize(std::string name, tf::TransformListener* tf, costmap_2d::Costmap2DROS* costmap_ros);
+        void initialize(std::string name, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* costmap_ros);
 
         ~FTCPlanner();
 
@@ -86,7 +90,7 @@ namespace ftc_local_planner
         *@param current pose of the robot
         *@return max point of the global plan with can reached
         */
-        int checkMaxDistance(tf::Stamped<tf::Pose> current_pose);
+        int checkMaxDistance(geometry_msgs::PoseStamped current_pose);
 
         /**
         *@brief Goes backward along global plan the max angle whith sim_time and max_rotation_vel allow
@@ -94,7 +98,7 @@ namespace ftc_local_planner
         *@param current pose of the robot
         *@return max point of the global plan with can reached
         */
-        int checkMaxAngle(int points, tf::Stamped<tf::Pose> current_pose);
+        int checkMaxAngle(int points, geometry_msgs::PoseStamped current_pose);
 
         /**
         *@brief Rotation at place
@@ -117,7 +121,7 @@ namespace ftc_local_planner
         *@param velocity message
         *@return number of points of global plan which are used
         */
-        int driveToward(tf::Stamped<tf::Pose> current_pose, geometry_msgs::Twist& cmd_vel);
+        int driveToward(geometry_msgs::PoseStamped current_pose, geometry_msgs::Twist& cmd_vel);
 
         /**
         *@brief Calculate the orientation of the global plan
@@ -125,7 +129,7 @@ namespace ftc_local_planner
         *@param global plan
         *@param number of points which used for calculation
         */
-        double calculateGlobalPlanAngle(tf::Stamped<tf::Pose> current_pose, const std::vector<geometry_msgs::PoseStamped>& plan, int points);
+        double calculateGlobalPlanAngle(geometry_msgs::PoseStamped current_pose, const std::vector<geometry_msgs::PoseStamped>& plan, int points);
 
         /**
         *@brief Check if the considerd points are in local collision.
@@ -135,7 +139,7 @@ namespace ftc_local_planner
         bool checkCollision(int max_points);
 
         //used for transformation
-        tf::TransformListener* tf_;
+        tf2_ros::Buffer* tf_;
         //costmap to get the current position
         costmap_2d::Costmap2DROS* costmap_ros_;
         //global plan which we run along
@@ -145,9 +149,9 @@ namespace ftc_local_planner
         //check if plan first at first time
         bool first_setPlan_;
         //last point of the global plan in global frame
-        tf::Stamped<tf::Pose> goal_pose_;
+        geometry_msgs::PoseStamped goal_pose_;
         // true if the robot should rotate to gobal plan if new global goal set
-        tf::Stamped<tf::Pose> old_goal_pose_;
+        geometry_msgs::PoseStamped old_goal_pose_;
         // true if the robot should rotate to gobal plan if new global goal set
         bool rotate_to_global_plan_;
         //for dynamic reconfigure
